@@ -246,3 +246,31 @@
         font-size: 24px;
     }
 }
+
+.sports-section {
+    margin-bottom: 25px;
+}
+
+.sports-section h4 {
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.sports-section select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e1e5e9;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: inherit;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.sports-section select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}

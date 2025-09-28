@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import SignUp from './components/SignUp';
@@ -7,87 +8,94 @@ import EmotionModal from './components/EmotionModal';
 import { authAPI, emotionAPI, tokenUtils, testConnection } from './services/apiService';
 
 function App() {
-    const [currentView, setCurrentView] = useState('login'); // 'login', 'signup', 'calendar'
+    const [currentView, setCurrentView] = useState('login');
     const [currentUser, setCurrentUser] = useState(null);
     const [emotionRecords, setEmotionRecords] = useState({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
 
-    // 인증 상태 확인 및 데이터 로드
     useEffect(() => {
-        const initializeApp = async () => {
-            try {
-                console.log('앱 초기화 시작...');
+        const init = async () => {
+            const url = new URL(window.location.href);
+            const access = url.searchParams.get('access');
+            const refresh = url.searchParams.get('refresh');
+            const userId = url.searchParams.get('user_id');
 
-                // 서버 연결 상태 확인
-                const isServerOnline = await testConnection();
-                if (!isServerOnline) {
-                    console.warn(
-                        '백엔드 서버에 연결할 수 없습니다. http://127.0.0.1:8000 에서 서버가 실행 중인지 확인해주세요.'
-                    );
+            if (access && refresh) {
+                localStorage.setItem('access', access);
+                localStorage.setItem('refresh', refresh);
+                localStorage.setItem('user_id', userId);
+
+                const user = { id: Number(userId), username: `kakao_${userId}` };
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                setCurrentUser(user);
+
+                url.searchParams.delete('access');
+                url.searchParams.delete('refresh');
+                url.searchParams.delete('user_id');
+                window.history.replaceState({}, '', url.toString());
+
+                setCurrentView('calendar');
+                await loadEmotionRecords();
+                return;
+            }
+
+            try {
+                const ok = await testConnection();
+                if (!ok) {
                     authAPI.logout();
                     localStorage.removeItem('currentUser');
                     setCurrentUser(null);
                     setCurrentView('login');
                     return;
                 }
-
-                // 토큰 기반 인증 상태 체크
-                if (tokenUtils.isAuthenticated()) {
-                    const savedUser = localStorage.getItem('currentUser');
-                    if (savedUser) {
-                        try {
-                            const user = JSON.parse(savedUser);
-                            if (user && user.username) {
-                                setCurrentUser(user);
-                                setCurrentView('calendar');
-                                await loadEmotionRecords();
-                            } else {
-                                throw new Error('유효하지 않은 사용자 데이터');
-                            }
-                        } catch (e) {
-                            console.error('사용자 데이터 파싱 실패:', e);
-                            authAPI.logout();
-                            localStorage.removeItem('currentUser');
-                            setCurrentUser(null);
-                            setCurrentView('login');
-                        }
-                    } else {
-                        authAPI.logout();
-                        setCurrentUser(null);
-                        setCurrentView('login');
-                    }
-                } else {
-                    setCurrentUser(null);
-                    setCurrentView('login');
-                }
-            } catch (error) {
-                console.error('앱 초기화 실패:', error);
+            } catch {
                 authAPI.logout();
                 localStorage.removeItem('currentUser');
+                setCurrentUser(null);
+                setCurrentView('login');
+                return;
+            }
+
+            if (tokenUtils.isAuthenticated()) {
+                const saved = localStorage.getItem('currentUser');
+                if (saved) {
+                    try {
+                        const user = JSON.parse(saved);
+                        if (user && user.username) {
+                            setCurrentUser(user);
+                            setCurrentView('calendar');
+                            await loadEmotionRecords();
+                            return;
+                        }
+                    } catch {}
+                }
+                authAPI.logout();
+                localStorage.removeItem('currentUser');
+                setCurrentUser(null);
+                setCurrentView('login');
+            } else {
                 setCurrentUser(null);
                 setCurrentView('login');
             }
         };
 
-        initializeApp();
+        init();
     }, []);
 
-    // 감정 기록 로드
     const loadEmotionRecords = async () => {
         try {
             const emotions = await emotionAPI.getEmotions();
-            const recordsMap = {};
-            emotions.forEach((emotion) => {
-                recordsMap[emotion.date] = emotion;
+            const map = {};
+            emotions.forEach((e) => {
+                map[e.date] = e;
             });
-            setEmotionRecords(recordsMap);
-        } catch (error) {
-            console.error('감정 기록 로드 실패:', error);
+            setEmotionRecords(map);
+        } catch (err) {
+            console.error('감정 기록 로드 실패:', err);
         }
     };
 
-    // 회원가입 처리
     const handleSignUp = async (userData) => {
         try {
             await authAPI.register(userData);
@@ -95,37 +103,23 @@ function App() {
             setCurrentView('login');
         } catch (error) {
             console.error('회원가입 실패:', error);
-            const errorMessage = error.message.includes('{')
+            const msg = error.message?.includes('{')
                 ? '회원가입에 실패했습니다. 입력 정보를 확인해주세요.'
-                : error.message;
-            alert(errorMessage);
+                : error.message || '회원가입에 실패했습니다.';
+            alert(msg);
         }
     };
 
-    // 로그인 처리 (JWT)
     const handleLogin = async (loginData) => {
         try {
-            console.log('로그인 시도:', loginData);
-            const response = await authAPI.login(loginData);
-            console.log('로그인 응답:', response);
+            const res = await authAPI.login(loginData);
+            if (!res || !res.access) throw new Error('서버에서 유효하지 않은 응답을 받았습니다.');
 
-            if (!response || !response.access) {
-                throw new Error('서버에서 유효하지 않은 응답을 받았습니다.');
-            }
-
-            // access/refresh는 authAPI.login에서 이미 저장됨(setTokens)
-            // currentUser에는 유저 정보만 저장
-            const user = {
-                id: response.user_id ?? null,
-                username: loginData.username,
-            };
-
+            const user = { id: res.user_id ?? null, username: loginData.username };
             localStorage.setItem('currentUser', JSON.stringify(user));
             setCurrentUser(user);
             setCurrentView('calendar');
-
             await loadEmotionRecords();
-
             alert(`환영합니다, ${user.username}님!`);
         } catch (error) {
             console.error('로그인 실패:', error);
@@ -133,9 +127,12 @@ function App() {
             setCurrentView('login');
             localStorage.removeItem('currentUser');
 
-            if (error.message.includes('fetch') || error.message.includes('서버에 연결할 수 없습니다')) {
+            if (
+                String(error.message).includes('fetch') ||
+                String(error.message).includes('서버에 연결할 수 없습니다')
+            ) {
                 alert('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
-            } else if (error.message.includes('400')) {
+            } else if (String(error.message).includes('400')) {
                 alert('아이디 또는 비밀번호가 올바르지 않습니다.');
             } else {
                 alert(`로그인에 실패했습니다: ${error.message}`);
@@ -143,7 +140,6 @@ function App() {
         }
     };
 
-    // 로그아웃 처리
     const handleLogout = () => {
         authAPI.logout();
         localStorage.removeItem('currentUser');
@@ -152,30 +148,23 @@ function App() {
         setCurrentView('login');
     };
 
-    // 날짜 선택 처리
     const handleDateSelect = (date) => {
         setSelectedDate(date);
         setIsModalOpen(true);
     };
 
-    // 감정 기록 저장
+    // ✅ sports까지 저장하도록 수정
     const handleSaveEmotion = async (record) => {
         try {
             const dateKey = record.date.toISOString().split('T')[0];
-            const emotionData = {
+            const payload = {
                 date: dateKey,
                 emotion: record.emotion,
                 memo: record.comment || record.memo || '',
+                sports: record.sports || null, // 운동 번호 포함
             };
-
-            const savedEmotion = await emotionAPI.saveEmotion(emotionData);
-
-            const newRecords = {
-                ...emotionRecords,
-                [dateKey]: savedEmotion,
-            };
-            setEmotionRecords(newRecords);
-
+            const saved = await emotionAPI.saveEmotion(payload);
+            setEmotionRecords((prev) => ({ ...prev, [dateKey]: saved }));
             alert('감정 기록이 저장되었습니다!');
         } catch (error) {
             console.error('감정 기록 저장 실패:', error);
@@ -185,8 +174,8 @@ function App() {
 
     const getExistingRecord = () => {
         if (!selectedDate) return null;
-        const dateKey = selectedDate.toISOString().split('T')[0];
-        return emotionRecords[dateKey] || null;
+        const key = selectedDate.toISOString().split('T')[0];
+        return emotionRecords[key] || null;
     };
 
     return (
@@ -221,6 +210,12 @@ function App() {
                         selectedDate={selectedDate}
                         existingRecord={getExistingRecord()}
                     />
+                </div>
+            )}
+
+            {currentView === 'kakao' && (
+                <div style={{ textAlign: 'center', marginTop: 48 }}>
+                    <h2>카카오 로그인 처리 중...</h2>
                 </div>
             )}
         </div>

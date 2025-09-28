@@ -4,6 +4,7 @@ import './EmotionModal.css';
 const EmotionModal = ({ isOpen, onClose, onSave, selectedDate, existingRecord }) => {
     const [selectedEmotion, setSelectedEmotion] = useState('');
     const [comment, setComment] = useState('');
+    const [selectedSport, setSelectedSport] = useState(null);
 
     const emotions = [
         { id: 'happy', name: '행복', emoji: '😊', color: '#FFD93D' },
@@ -16,14 +17,24 @@ const EmotionModal = ({ isOpen, onClose, onSave, selectedDate, existingRecord })
         { id: 'grateful', name: '감사', emoji: '🙏', color: '#FFB366' },
     ];
 
-    // 기존 기록이 있으면 폼에 반영
+    const sportsOptions = [
+        { id: 1, name: '목풀기' },
+        { id: 2, name: '헬스' },
+        { id: 3, name: '축구' },
+        { id: 4, name: '농구' },
+        { id: 5, name: '수영' },
+    ];
+
+    // 기존 기록 반영
     useEffect(() => {
         if (existingRecord) {
             setSelectedEmotion(existingRecord.emotion);
             setComment(existingRecord.comment || existingRecord.memo || '');
+            setSelectedSport(existingRecord.sports || null);
         } else {
             setSelectedEmotion('');
             setComment('');
+            setSelectedSport(null);
         }
     }, [existingRecord, isOpen]);
 
@@ -37,6 +48,7 @@ const EmotionModal = ({ isOpen, onClose, onSave, selectedDate, existingRecord })
             emotion: selectedEmotion,
             comment: comment.trim(),
             date: selectedDate,
+            sports: selectedSport, // ✅ 운동 번호 포함
             timestamp: new Date().toISOString(),
         };
 
@@ -47,17 +59,13 @@ const EmotionModal = ({ isOpen, onClose, onSave, selectedDate, existingRecord })
     const handleClose = () => {
         setSelectedEmotion('');
         setComment('');
+        setSelectedSport(null);
         onClose();
     };
 
     const formatDate = (date) => {
         if (!date) return '';
-        const options = {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            weekday: 'long',
-        };
+        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
         return date.toLocaleDateString('ko-KR', options);
     };
 
@@ -93,6 +101,18 @@ const EmotionModal = ({ isOpen, onClose, onSave, selectedDate, existingRecord })
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="sports-section">
+                        <h4>오늘 한 운동</h4>
+                        <select value={selectedSport || ''} onChange={(e) => setSelectedSport(Number(e.target.value))}>
+                            <option value="">선택 안 함</option>
+                            {sportsOptions.map((sport) => (
+                                <option key={sport.id} value={sport.id}>
+                                    {sport.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <div className="comment-section">

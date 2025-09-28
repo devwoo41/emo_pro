@@ -2,63 +2,44 @@ import React, { useState } from 'react';
 import './Login.css';
 
 const Login = ({ onLogin, onSwitchToSignUp }) => {
-    const [formData, setFormData] = useState({
-        username: '',
-        password: '',
-    });
+    const [formData, setFormData] = useState({ username: '', password: '' });
     const [errors, setErrors] = useState({});
-    const [loading, setLoading] = useState(false); // ✅ 로딩 상태
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
-
-        // 입력 시 해당 필드의 에러 메시지 제거
+        setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
         if (errors[e.target.name]) {
-            setErrors({
-                ...errors,
-                [e.target.name]: '',
-            });
+            setErrors((p) => ({ ...p, [e.target.name]: '' }));
         }
     };
 
     const validateForm = () => {
-        const newErrors = {};
-
-        if (!formData.username.trim()) {
-            newErrors.username = '사용자명을 입력해주세요.';
-        }
-
-        if (!formData.password) {
-            newErrors.password = '비밀번호를 입력해주세요.';
-        }
-
-        return newErrors;
+        const e = {};
+        if (!formData.username.trim()) e.username = '사용자명을 입력해주세요.';
+        if (!formData.password) e.password = '비밀번호를 입력해주세요.';
+        return e;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (loading) return; // 중복 제출 방지
+        if (loading) return;
 
-        const newErrors = validateForm();
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
+        const v = validateForm();
+        if (Object.keys(v).length > 0) {
+            setErrors(v);
             return;
         }
 
         try {
             setLoading(true);
-            await onLogin(formData); // 부모에서 JWT 저장/화면 전환 처리
-        } catch {
-            // 부모에서 에러 alert 처리함. 여기선 추가 처리 불필요.
+            await onLogin(formData);
         } finally {
             setLoading(false);
         }
     };
 
-    // ✅ 카카오 로그인
+    // ✅ 카카오 로그인 시작
+    // 백엔드가 authorize URL로 리다이렉트 → 카카오 → (설정된 redirect_uri) 프론트 /kakao/callback?code=...
     const handleKakaoLogin = () => {
         window.location.href = 'http://127.0.0.1:8000/users/kakao/login/';
     };
@@ -107,7 +88,6 @@ const Login = ({ onLogin, onSwitchToSignUp }) => {
                     </button>
                 </form>
 
-                {/* 구분선 */}
                 <div style={{ margin: '16px 0', textAlign: 'center', color: '#999', fontSize: 12 }}>— 또는 —</div>
 
                 {/* ✅ 카카오 로그인 버튼 */}
